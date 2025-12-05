@@ -1,0 +1,399 @@
+version: "3.9"
+
+services:
+  # ============================================
+  # RabbitMQ Message Broker
+  # ============================================
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    hostname: rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - bank-net
+
+  # ============================================
+  # PostgreSQL Databases
+  # ============================================
+  
+  # Main DB for users-service and accounts-service
+  db-main:
+    image: postgres:16
+    container_name: db-main
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: app
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-main-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d app"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - bank-net
+
+  # DB for transfer-service
+  db-transfer:
+    image: postgres:16
+    container_name: db-transfer
+    environment:
+      POSTGRES_USER: transfer_user
+      POSTGRES_PASSWORD: transfer_pass
+      POSTGRES_DB: transferdb
+    ports:
+      - "5433:5432"
+    volumes:
+      - db-transfer-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U transfer_user -d transferdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - bank-net
+
+  # DB for notification-service
+  db-notification:
+    image: postgres:16
+    container_name: db-notification
+    environment:
+      POSTGRES_USER: notification_user
+      POSTGRES_PASSWORD: notification_pass
+      POSTGRES_DB: notificationdb
+    ports:
+      - "5434:5432"
+    volumes:
+      - db-notification-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U notification_user -d notificationdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - bank-net
+
+  # DB for audit-service
+  db-audit:
+    image: postgres:16
+    container_name: db-audit
+    environment:
+      POSTGRES_USER: audit_user
+      POSTGRES_PASSWORD: audit_pass
+      POSTGRES_DB: audit_db
+    ports:
+      - "5435:5432"
+    volumes:
+      - db-audit-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U audit_user -d audit_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - bank-net
+
+  # DB for report-service
+  db-report:
+    image: postgres:16
+    container_name: db-report
+    environment:
+      POSTGRES_USER: report_user
+      POSTGRES_PASSWORD: report_pass
+      POSTGRES_DB: reportdb
+    ports:
+      - "5436:5432"
+    volumes:
+      - db-report-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U report_user -d reportdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - bank-net
+
+  # ============================================
+  # Microservices
+  # ============================================
+
+  # 1. Users Service (Kotlin/Ktor) - Port 8081
+  users-service:
+    build:
+      context: ./MicroServices/users-service
+      dockerfile: Dockerfile
+    container_name: users-service
+    environment:
+      PORT: 8081
+      DB_URL: jdbc:postgresql://db-main:5432/app
+      DB_USER: app
+      DB_PASSWORD: app
+      JWT_SECRET: secret-jwt-key-for-bank-services
+      RABBIT_URL: amqp://guest:guest@rabbitmq:5672/%2f
+    ports:
+      - "8081:8081"
+    depends_on:
+      db-main:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - bank-net
+
+  # 2. Accounts Service (Kotlin/Ktor) - Port 8082
+  accounts-service:
+    build:
+      context: ./MicroServices/accounts-service
+      dockerfile: Dockerfile
+    container_name: accounts-service
+    environment:
+      PORT: 8082
+      DB_URL: jdbc:postgresql://db-main:5432/app
+      DB_USER: app
+      DB_PASSWORD: app
+      JWT_SECRET: secret-jwt-key-for-bank-services
+      RABBIT_URL: amqp://guest:guest@rabbitmq:5672/%2f
+    ports:
+      - "8082:8082"
+    depends_on:
+      db-main:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - bank-net
+
+  # 3. Transfer Service (Java/Spring) - Port 8080
+  transfer-service:
+    build:
+      context: ./microService_bank/transfer_service
+      dockerfile: Dockerfile
+    container_name: transfer-service
+    environment:
+      DB_HOST: db-transfer
+      DB_PORT: 5432
+      DB_NAME: transferdb
+      DB_USERNAME: transfer_user
+      DB_PASSWORD: transfer_pass
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: guest
+      RABBITMQ_PASSWORD: guest
+    ports:
+      - "8080:8080"
+    depends_on:
+      db-transfer:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - bank-net
+
+  # 4. Notification Service (Java/Spring) - Port 8083
+  notification-service:
+    build:
+      context: ./microService_bank/notification_service
+      dockerfile: Dockerfile
+    container_name: notification-service
+    environment:
+      SERVER_PORT: 8083
+      DB_HOST: db-notification
+      DB_PORT: 5432
+      DB_NAME: notificationdb
+      DB_USERNAME: notification_user
+      DB_PASSWORD: notification_pass
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: guest
+      RABBITMQ_PASSWORD: guest
+    ports:
+      - "8083:8083"
+    depends_on:
+      db-notification:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - bank-net
+
+  # 5. Report Service (Kotlin/Spring) - Port 8084
+  report-service:
+    build:
+      context: ./bank
+      dockerfile: services/report/Dockerfile
+    container_name: report-service
+    environment:
+      SERVER_PORT: 8084
+      DB_URL: jdbc:postgresql://db-report:5432/reportdb
+      DB_USERNAME: report_user
+      DB_PASSWORD: report_pass
+      CURRENCY_SERVICE_URL: http://currency-service:8087
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: guest
+      RABBITMQ_PASSWORD: guest
+    ports:
+      - "8084:8084"
+    depends_on:
+      db-report:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - bank-net
+
+  # 6. Audit Service (Kotlin/Ktor) - Port 8085
+  audit-service:
+    build:
+      context: ./micro_service
+      dockerfile: audit-service/Dockerfile
+    container_name: audit-service
+    environment:
+      PORT: 8085
+      DB_URL: jdbc:postgresql://db-audit:5432/audit_db
+      DB_USER: audit_user
+      DB_PASSWORD: audit_pass
+      RABBIT_URL: amqp://guest:guest@rabbitmq:5672/%2f
+    ports:
+      - "8085:8085"
+    depends_on:
+      db-audit:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - bank-net
+
+  # 7. Support Service (Kotlin/Ktor) - Port 8086
+  support-service:
+    build:
+      context: ./micro_service
+      dockerfile: support-service/Dockerfile
+    container_name: support-service
+    environment:
+      PORT: 8086
+      RABBIT_URL: amqp://guest:guest@rabbitmq:5672/%2f
+    ports:
+      - "8086:8086"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - bank-net
+
+  # 8. Currency Service (Kotlin/Spring) - Port 8087
+  currency-service:
+    build:
+      context: ./bank
+      dockerfile: services/currency/Dockerfile
+    container_name: currency-service
+    environment:
+      SERVER_PORT: 8087
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: guest
+      RABBITMQ_PASSWORD: guest
+    ports:
+      - "8087:8087"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - bank-net
+
+  # ============================================
+  # Monitoring
+  # ============================================
+
+  # Prometheus - metrics collection
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: prometheus
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+    networks:
+      - bank-net
+
+  # Grafana - visualization
+  grafana:
+    image: grafana/grafana:10.1.0
+    container_name: grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    networks:
+      - bank-net
+
+  # Blackbox Exporter - HTTP health checks
+  blackbox-exporter:
+    image: prom/blackbox-exporter:v0.24.0
+    container_name: blackbox-exporter
+    ports:
+      - "9115:9115"
+    restart: unless-stopped
+    networks:
+      - bank-net
+
+# ============================================
+# Networks
+# ============================================
+networks:
+  bank-net:
+    name: bank-net
+    driver: bridge
+
+# ============================================
+# Volumes
+# ============================================
+volumes:
+  rabbitmq-data:
+  db-main-data:
+  db-transfer-data:
+  db-notification-data:
+  db-audit-data:
+  db-report-data:
+  prometheus-data:
+  grafana-data:
+

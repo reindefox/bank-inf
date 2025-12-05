@@ -1,0 +1,57 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Spring Boot services (with actuator)
+  - job_name: 'spring-boot-services'
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - 'transfer-service:8080'
+          - 'notification-service:8083'
+          - 'report-service:8084'
+          - 'currency-service:8087'
+        labels:
+          framework: 'spring-boot'
+
+  # Ktor services - health check
+  - job_name: 'ktor-services'
+    metrics_path: /health
+    static_configs:
+      - targets:
+          - 'users-service:8081'
+          - 'accounts-service:8082'
+          - 'audit-service:8085'
+          - 'support-service:8086'
+        labels:
+          framework: 'ktor'
+
+  # Blackbox exporter for HTTP probe (service availability)
+  - job_name: 'blackbox-http'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - 'http://users-service:8081/health'
+          - 'http://accounts-service:8082/health'
+          - 'http://transfer-service:8080/actuator/health'
+          - 'http://notification-service:8083/actuator/health'
+          - 'http://report-service:8084/actuator/health'
+          - 'http://audit-service:8085/health'
+          - 'http://support-service:8086/health'
+          - 'http://currency-service:8087/actuator/health'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+

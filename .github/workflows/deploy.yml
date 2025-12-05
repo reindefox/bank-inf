@@ -1,0 +1,217 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      services:
+        description: 'Services to deploy (comma-separated or "all")'
+        required: true
+        default: 'all'
+        type: string
+
+  push:
+    branches:
+      - main
+    paths:
+      - 'MicroServices/**'
+      - 'microService_bank/**'
+      - 'micro_service/**'
+      - 'bank/**'
+      - 'docker-compose.yml'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository }}
+
+jobs:
+  # ===========================================
+  # Сборка и публикация Docker образов
+  # ===========================================
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Generate version
+        id: version
+        run: |
+          VERSION=$(date +%Y%m%d)-${GITHUB_SHA::8}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Version: $VERSION"
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Build and push users-service
+        if: ${{ github.event.inputs.services == 'all' || contains(github.event.inputs.services, 'users') }}
+        uses: docker/build-push-action@v5
+        with:
+          context: ./MicroServices/users-service
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/users-service:${{ steps.version.outputs.version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/users-service:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Build and push accounts-service
+        if: ${{ github.event.inputs.services == 'all' || contains(github.event.inputs.services, 'accounts') }}
+        uses: docker/build-push-action@v5
+        with:
+          context: ./MicroServices/accounts-service
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/accounts-service:${{ steps.version.outputs.version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/accounts-service:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Build and push transfer-service
+        if: ${{ github.event.inputs.services == 'all' || contains(github.event.inputs.services, 'transfer') }}
+        uses: docker/build-push-action@v5
+        with:
+          context: ./microService_bank/transfer_service
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/transfer-service:${{ steps.version.outputs.version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/transfer-service:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Build and push notification-service
+        if: ${{ github.event.inputs.services == 'all' || contains(github.event.inputs.services, 'notification') }}
+        uses: docker/build-push-action@v5
+        with:
+          context: ./microService_bank/notification_service
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/notification-service:${{ steps.version.outputs.version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/notification-service:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Build and push report-service
+        if: ${{ github.event.inputs.services == 'all' || contains(github.event.inputs.services, 'report') }}
+        uses: docker/build-push-action@v5
+        with:
+          context: ./bank
+          file: ./bank/services/report/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/report-service:${{ steps.version.outputs.version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/report-service:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Build and push audit-service
+        if: ${{ github.event.inputs.services == 'all' || contains(github.event.inputs.services, 'audit') }}
+        uses: docker/build-push-action@v5
+        with:
+          context: ./micro_service
+          file: ./micro_service/audit-service/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/audit-service:${{ steps.version.outputs.version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/audit-service:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Build and push support-service
+        if: ${{ github.event.inputs.services == 'all' || contains(github.event.inputs.services, 'support') }}
+        uses: docker/build-push-action@v5
+        with:
+          context: ./micro_service
+          file: ./micro_service/support-service/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/support-service:${{ steps.version.outputs.version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/support-service:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Build and push currency-service
+        if: ${{ github.event.inputs.services == 'all' || contains(github.event.inputs.services, 'currency') }}
+        uses: docker/build-push-action@v5
+        with:
+          context: ./bank
+          file: ./bank/services/currency/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/currency-service:${{ steps.version.outputs.version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/currency-service:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ===========================================
+  # Развёртывание в Staging
+  # ===========================================
+  deploy-staging:
+    needs: build-and-push
+    if: ${{ github.event.inputs.environment == 'staging' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Deploy to Staging
+        run: |
+          echo "🚀 Deploying version ${{ needs.build-and-push.outputs.version }} to Staging..."
+          # Здесь можно добавить команды для деплоя на staging-сервер
+          # Например, через SSH:
+          # ssh user@staging-server "cd /app && docker compose pull && docker compose up -d"
+          
+          echo "✅ Deployment to Staging completed!"
+
+  # ===========================================
+  # Развёртывание в Production
+  # ===========================================
+  deploy-production:
+    needs: build-and-push
+    if: ${{ github.event.inputs.environment == 'production' }}
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Deploy to Production
+        run: |
+          echo "🚀 Deploying version ${{ needs.build-and-push.outputs.version }} to Production..."
+          # Здесь можно добавить команды для деплоя на production-сервер
+          
+          echo "✅ Deployment to Production completed!"
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ needs.build-and-push.outputs.version }}
+          name: Release ${{ needs.build-and-push.outputs.version }}
+          body: |
+            ## Deployed Services
+            - Version: ${{ needs.build-and-push.outputs.version }}
+            - Environment: Production
+            - Deployed at: ${{ github.event.head_commit.timestamp }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

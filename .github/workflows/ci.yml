@@ -1,0 +1,425 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ main, develop, 'feature/**' ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  JAVA_VERSION: '17'
+  JAVA_VERSION_21: '21'
+
+jobs:
+  # ===========================================
+  # Определение изменённых сервисов
+  # ===========================================
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      users-service: ${{ steps.changes.outputs.users-service }}
+      accounts-service: ${{ steps.changes.outputs.accounts-service }}
+      transfer-service: ${{ steps.changes.outputs.transfer-service }}
+      notification-service: ${{ steps.changes.outputs.notification-service }}
+      report-service: ${{ steps.changes.outputs.report-service }}
+      audit-service: ${{ steps.changes.outputs.audit-service }}
+      support-service: ${{ steps.changes.outputs.support-service }}
+      currency-service: ${{ steps.changes.outputs.currency-service }}
+      any-service: ${{ steps.changes.outputs.any-service }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            users-service:
+              - 'MicroServices/users-service/**'
+            accounts-service:
+              - 'MicroServices/accounts-service/**'
+            transfer-service:
+              - 'microService_bank/transfer_service/**'
+            notification-service:
+              - 'microService_bank/notification_service/**'
+            report-service:
+              - 'bank/services/report/**'
+            audit-service:
+              - 'micro_service/audit-service/**'
+            support-service:
+              - 'micro_service/support-service/**'
+            currency-service:
+              - 'bank/services/currency/**'
+            any-service:
+              - 'MicroServices/**'
+              - 'microService_bank/**'
+              - 'micro_service/**'
+              - 'bank/**'
+              - 'docker-compose.yml'
+
+  # ===========================================
+  # Сборка и тестирование users-service
+  # ===========================================
+  build-users-service:
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.users-service == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: MicroServices/users-service
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION_21 }}
+          distribution: 'temurin'
+          cache: gradle
+      
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      
+      - name: Build
+        run: ./gradlew clean build -x test --no-daemon
+      
+      - name: Run tests
+        run: ./gradlew test --no-daemon
+      
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: users-service-test-results
+          path: MicroServices/users-service/build/test-results/
+
+  # ===========================================
+  # Сборка и тестирование accounts-service
+  # ===========================================
+  build-accounts-service:
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.accounts-service == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: MicroServices/accounts-service
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION_21 }}
+          distribution: 'temurin'
+          cache: gradle
+      
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      
+      - name: Build
+        run: ./gradlew clean build -x test --no-daemon
+      
+      - name: Run tests
+        run: ./gradlew test --no-daemon
+      
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: accounts-service-test-results
+          path: MicroServices/accounts-service/build/test-results/
+
+  # ===========================================
+  # Сборка и тестирование transfer-service
+  # ===========================================
+  build-transfer-service:
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.transfer-service == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: microService_bank/transfer_service
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: gradle
+      
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      
+      - name: Build
+        run: ./gradlew clean build -x test --no-daemon
+      
+      - name: Run tests
+        run: ./gradlew test --no-daemon
+      
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: transfer-service-test-results
+          path: microService_bank/transfer_service/build/test-results/
+
+  # ===========================================
+  # Сборка и тестирование notification-service
+  # ===========================================
+  build-notification-service:
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.notification-service == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: microService_bank/notification_service
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: gradle
+      
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      
+      - name: Build
+        run: ./gradlew clean build -x test --no-daemon
+      
+      - name: Run tests
+        run: ./gradlew test --no-daemon
+      
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: notification-service-test-results
+          path: microService_bank/notification_service/build/test-results/
+
+  # ===========================================
+  # Сборка и тестирование report-service
+  # ===========================================
+  build-report-service:
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.report-service == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: bank
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: gradle
+      
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      
+      - name: Build
+        run: ./gradlew :services:report:clean :services:report:build -x test --no-daemon
+      
+      - name: Run tests
+        run: ./gradlew :services:report:test --no-daemon
+      
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: report-service-test-results
+          path: bank/services/report/build/test-results/
+
+  # ===========================================
+  # Сборка и тестирование audit-service
+  # ===========================================
+  build-audit-service:
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.audit-service == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: micro_service
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: gradle
+      
+      - name: Grant execute permission for gradlew
+        run: chmod +x ../micro_service/audit-service/gradlew || true
+      
+      - name: Build
+        run: ./gradlew :audit-service:clean :audit-service:build -x test --no-daemon
+      
+      - name: Run tests
+        run: ./gradlew :audit-service:test --no-daemon
+      
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: audit-service-test-results
+          path: micro_service/audit-service/build/test-results/
+
+  # ===========================================
+  # Сборка и тестирование support-service
+  # ===========================================
+  build-support-service:
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.support-service == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: micro_service
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: gradle
+      
+      - name: Build
+        run: ./gradlew :support-service:clean :support-service:build -x test --no-daemon
+      
+      - name: Run tests
+        run: ./gradlew :support-service:test --no-daemon
+      
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: support-service-test-results
+          path: micro_service/support-service/build/test-results/
+
+  # ===========================================
+  # Сборка и тестирование currency-service
+  # ===========================================
+  build-currency-service:
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.currency-service == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: bank
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: gradle
+      
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      
+      - name: Build
+        run: ./gradlew :services:currency:clean :services:currency:build -x test --no-daemon
+      
+      - name: Run tests
+        run: ./gradlew :services:currency:test --no-daemon
+      
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: currency-service-test-results
+          path: bank/services/currency/build/test-results/
+
+  # ===========================================
+  # Сборка Docker образов
+  # ===========================================
+  build-docker-images:
+    needs: 
+      - detect-changes
+      - build-users-service
+      - build-accounts-service
+      - build-transfer-service
+      - build-notification-service
+      - build-report-service
+      - build-audit-service
+      - build-support-service
+      - build-currency-service
+    if: |
+      always() && 
+      needs.detect-changes.outputs.any-service == 'true' &&
+      !contains(needs.*.result, 'failure')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build Docker images
+        run: |
+          echo "🐳 Building Docker images..."
+          docker compose build --parallel
+      
+      - name: List built images
+        run: docker images | grep -E "(users|accounts|transfer|notification|report|audit|support|currency)"
+
+  # ===========================================
+  # Интеграционные тесты
+  # ===========================================
+  integration-tests:
+    needs: build-docker-images
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Start services
+        run: |
+          docker compose up -d
+          echo "⏳ Waiting for services to be healthy..."
+          sleep 60
+      
+      - name: Check services health
+        run: |
+          echo "🏥 Checking services health..."
+          
+          # RabbitMQ
+          curl -f http://localhost:15672 || echo "RabbitMQ UI not available"
+          
+          # Check each service
+          services=(
+            "users-service:8081:/health"
+            "accounts-service:8082:/health"
+            "transfer-service:8080:/actuator/health"
+            "notification-service:8083:/actuator/health"
+            "report-service:8084:/actuator/health"
+            "audit-service:8085:/health"
+            "support-service:8086:/health"
+            "currency-service:8087:/actuator/health"
+          )
+          
+          for service in "${services[@]}"; do
+            IFS=':' read -r name port path <<< "$service"
+            echo "Checking $name..."
+            curl -sf "http://localhost:$port$path" && echo "✅ $name is healthy" || echo "⚠️ $name might not be ready"
+          done
+      
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose logs
+      
+      - name: Cleanup
+        if: always()
+        run: docker compose down -v
+
