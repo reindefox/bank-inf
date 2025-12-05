@@ -41,6 +41,18 @@ pipeline {
             steps {
                 echo "📥 Получение исходного кода..."
                 checkout scm
+                
+                echo "📦 Клонирование вложенных репозиториев..."
+                sh '''
+                    # Удаляем пустые директории (gitlinks)
+                    rm -rf MicroServices bank microService_bank micro_service || true
+                    
+                    # Клонируем все подпроекты
+                    git clone --depth 1 https://github.com/Razorray12/MicroServices.git MicroServices
+                    git clone --depth 1 https://github.com/reindefox/bank.git bank
+                    git clone --depth 1 https://github.com/depresso-m/microService_bank.git microService_bank
+                    git clone --depth 1 https://github.com/emiliyura/micro_service.git micro_service
+                '''
             }
         }
 
@@ -65,7 +77,7 @@ pipeline {
                     when { expression { env.SERVICES_TO_BUILD.contains('users-service') } }
                     steps { 
                         dir('MicroServices/users-service') {
-                            sh '../../gradlew clean build -x test --no-daemon || true'
+                            sh 'chmod +x ./gradlew && ./gradlew clean build -x test --no-daemon || true'
                         }
                     }
                 }
@@ -73,7 +85,7 @@ pipeline {
                     when { expression { env.SERVICES_TO_BUILD.contains('accounts-service') } }
                     steps { 
                         dir('MicroServices/accounts-service') {
-                            sh '../../gradlew clean build -x test --no-daemon || true'
+                            sh 'chmod +x ./gradlew && ./gradlew clean build -x test --no-daemon || true'
                         }
                     }
                 }
@@ -81,7 +93,7 @@ pipeline {
                     when { expression { env.SERVICES_TO_BUILD.contains('transfer-service') } }
                     steps { 
                         dir('microService_bank/transfer_service') {
-                            sh '../../gradlew clean build -x test --no-daemon || true'
+                            sh 'chmod +x ./gradlew && ./gradlew clean build -x test --no-daemon || true'
                         }
                     }
                 }
@@ -89,7 +101,7 @@ pipeline {
                     when { expression { env.SERVICES_TO_BUILD.contains('notification-service') } }
                     steps { 
                         dir('microService_bank/notification_service') {
-                            sh '../../gradlew clean build -x test --no-daemon || true'
+                            sh 'chmod +x ./gradlew && ./gradlew clean build -x test --no-daemon || true'
                         }
                     }
                 }
@@ -97,7 +109,7 @@ pipeline {
                     when { expression { env.SERVICES_TO_BUILD.contains('report-service') } }
                     steps { 
                         dir('bank') {
-                            sh '../gradlew :services:report:clean :services:report:build -x test --no-daemon || true'
+                            sh 'chmod +x ./gradlew && ./gradlew :services:report:clean :services:report:build -x test --no-daemon || true'
                         }
                     }
                 }
@@ -105,7 +117,7 @@ pipeline {
                     when { expression { env.SERVICES_TO_BUILD.contains('audit-service') } }
                     steps { 
                         dir('micro_service') {
-                            sh '../gradlew :audit-service:clean :audit-service:build -x test --no-daemon || true'
+                            sh 'chmod +x ./gradlew && ./gradlew :audit-service:clean :audit-service:build -x test --no-daemon || true'
                         }
                     }
                 }
@@ -113,7 +125,7 @@ pipeline {
                     when { expression { env.SERVICES_TO_BUILD.contains('support-service') } }
                     steps { 
                         dir('micro_service') {
-                            sh '../gradlew :support-service:clean :support-service:build -x test --no-daemon || true'
+                            sh 'chmod +x ./gradlew && ./gradlew :support-service:clean :support-service:build -x test --no-daemon || true'
                         }
                     }
                 }
@@ -121,7 +133,7 @@ pipeline {
                     when { expression { env.SERVICES_TO_BUILD.contains('currency-service') } }
                     steps { 
                         dir('bank') {
-                            sh '../gradlew :services:currency:clean :services:currency:build -x test --no-daemon || true'
+                            sh 'chmod +x ./gradlew && ./gradlew :services:currency:clean :services:currency:build -x test --no-daemon || true'
                         }
                     }
                 }
@@ -135,7 +147,7 @@ pipeline {
                     when { expression { env.SERVICES_TO_BUILD.contains('users-service') } }
                     steps {
                         dir('MicroServices/users-service') {
-                            sh '../../gradlew test --no-daemon || true'
+                            sh 'chmod +x ./gradlew && ./gradlew test --no-daemon || true'
                         }
                     }
                     post {
@@ -146,7 +158,7 @@ pipeline {
                     when { expression { env.SERVICES_TO_BUILD.contains('accounts-service') } }
                     steps {
                         dir('MicroServices/accounts-service') {
-                            sh '../../gradlew test --no-daemon || true'
+                            sh 'chmod +x ./gradlew && ./gradlew test --no-daemon || true'
                         }
                     }
                     post {
@@ -157,7 +169,7 @@ pipeline {
                     when { expression { env.SERVICES_TO_BUILD.contains('transfer-service') } }
                     steps {
                         dir('microService_bank/transfer_service') {
-                            sh '../../gradlew test --no-daemon || true'
+                            sh 'chmod +x ./gradlew && ./gradlew test --no-daemon || true'
                         }
                     }
                     post {
@@ -168,7 +180,7 @@ pipeline {
                     when { expression { env.SERVICES_TO_BUILD.contains('notification-service') } }
                     steps {
                         dir('microService_bank/notification_service') {
-                            sh '../../gradlew test --no-daemon || true'
+                            sh 'chmod +x ./gradlew && ./gradlew test --no-daemon || true'
                         }
                     }
                     post {
@@ -179,7 +191,7 @@ pipeline {
                     when { expression { env.SERVICES_TO_BUILD.contains('report-service') } }
                     steps {
                         dir('bank') {
-                            sh '../gradlew :services:report:test --no-daemon || true'
+                            sh 'chmod +x ./gradlew && ./gradlew :services:report:test --no-daemon || true'
                         }
                     }
                     post {
@@ -190,7 +202,7 @@ pipeline {
                     when { expression { env.SERVICES_TO_BUILD.contains('audit-service') } }
                     steps {
                         dir('micro_service') {
-                            sh '../gradlew :audit-service:test --no-daemon || true'
+                            sh 'chmod +x ./gradlew && ./gradlew :audit-service:test --no-daemon || true'
                         }
                     }
                     post {
@@ -201,7 +213,7 @@ pipeline {
                     when { expression { env.SERVICES_TO_BUILD.contains('support-service') } }
                     steps {
                         dir('micro_service') {
-                            sh '../gradlew :support-service:test --no-daemon || true'
+                            sh 'chmod +x ./gradlew && ./gradlew :support-service:test --no-daemon || true'
                         }
                     }
                     post {
@@ -212,7 +224,7 @@ pipeline {
                     when { expression { env.SERVICES_TO_BUILD.contains('currency-service') } }
                     steps {
                         dir('bank') {
-                            sh '../gradlew :services:currency:test --no-daemon || true'
+                            sh 'chmod +x ./gradlew && ./gradlew :services:currency:test --no-daemon || true'
                         }
                     }
                     post {
@@ -225,6 +237,16 @@ pipeline {
         stage('Build Docker Images') {
             steps {
                 script {
+                    // Проверка доступности Docker
+                    def dockerAvailable = sh(script: 'docker --version', returnStatus: true) == 0
+                    if (!dockerAvailable) {
+                        echo "⚠️ Docker не доступен. Пропускаем сборку Docker образов."
+                        echo "💡 Для работы Docker в Jenkins, примонтируйте Docker socket:"
+                        echo "   docker run -v /var/run/docker.sock:/var/run/docker.sock ..."
+                        return
+                    }
+                    
+                    echo "🐳 Сборка Docker образов..."
                     def services = env.SERVICES_TO_BUILD.split(',')
                     services.each { service ->
                         switch(service.trim()) {
@@ -262,6 +284,11 @@ pipeline {
             when { expression { params.DEPLOY_ENV == 'dev' || params.DEPLOY_ENV == 'staging' } }
             steps {
                 script {
+                    def dockerAvailable = sh(script: 'docker --version', returnStatus: true) == 0
+                    if (!dockerAvailable) {
+                        echo "⚠️ Docker не доступен. Пропускаем развёртывание."
+                        return
+                    }
                     echo "🚀 Развёртывание в окружение: ${params.DEPLOY_ENV}"
                     sh 'docker compose down || true'
                     sh 'docker compose up -d --build'
@@ -310,8 +337,13 @@ pipeline {
         stage('Deploy to Production') {
             when { allOf { expression { params.DEPLOY_ENV == 'prod' }; branch 'main' } }
             steps {
-                input message: '🚨 Подтвердите развёртывание в PRODUCTION', ok: 'Deploy'
                 script {
+                    def dockerAvailable = sh(script: 'docker --version', returnStatus: true) == 0
+                    if (!dockerAvailable) {
+                        echo "⚠️ Docker не доступен. Пропускаем развёртывание в production."
+                        return
+                    }
+                    input message: '🚨 Подтвердите развёртывание в PRODUCTION', ok: 'Deploy'
                     echo "🚀 Развёртывание в PRODUCTION..."
                     sh 'docker compose -f docker-compose.yml up -d --build'
                 }
